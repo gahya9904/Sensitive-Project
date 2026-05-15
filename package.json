@@ -2,10 +2,10 @@
   "name": "sentiment-analysis-service",
   "version": "1.0.0",
   "description": "Sentiment Analysis Service using OpenAI and Supabase",
-  "main": "server/index.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js"
   },
   "keywords": [],
   "author": "",
