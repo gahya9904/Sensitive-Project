@@ -1,17 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const { OpenAI } = require('openai');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -29,15 +26,13 @@ if (supabaseUrl && supabaseUrl.startsWith('http') && supabaseServiceKey) {
   } catch (err) {
     console.error('Failed to initialize Supabase client:', err.message);
   }
-} else {
-  console.warn('Supabase credentials missing or invalid. DB logging disabled.');
 }
 
 // API Endpoint: Analyze Sentiment
+// Vercel에서 api/index.js로 요청이 오면 /api/analyze로 매칭되도록 설정
 app.post('/api/analyze', async (req, res) => {
   const { text } = req.body;
 
-  // Validation
   if (!text || typeof text !== 'string' || text.trim() === '') {
     return res.status(400).json({ error: '텍스트를 입력해주세요.' });
   }
@@ -47,9 +42,8 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   try {
-    // OpenAI API call with structured output
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Using a stable model
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -64,49 +58,26 @@ app.post('/api/analyze', async (req, res) => {
     });
 
     const result = JSON.parse(response.choices[0].message.content);
-    
-    // Normalize response
     const normalizedResult = {
       sentiment: result.sentiment || 'neutral',
       confidence: result.confidence || 0,
       reason: result.reason || '분석 결과를 생성할 수 없습니다.'
     };
 
-    // Log to Supabase if available
     if (supabase) {
-      const { error: dbError } = await supabase
-        .from('sentiment_logs')
-        .insert([
-          {
-            input_text: text,
-            sentiment: normalizedResult.sentiment,
-            confidence: normalizedResult.confidence,
-            reason: normalizedResult.reason
-          }
-        ]);
-
-      if (dbError) {
-        console.error('Supabase logging failed:', dbError.message);
-      }
-    } else {
-      console.warn('Supabase client not initialized. Skipping logging.');
+      await supabase.from('sentiment_logs').insert([{
+        input_text: text,
+        sentiment: normalizedResult.sentiment,
+        confidence: normalizedResult.confidence,
+        reason: normalizedResult.reason
+      }]);
     }
 
     res.json(normalizedResult);
-
   } catch (error) {
     console.error('Analysis error:', error);
-    res.status(500).json({ 
-      error: '분석 중 문제가 발생했습니다. API 키 설정을 확인하거나 잠시 후 다시 시도해주세요.' 
-    });
+    res.status(500).json({ error: '분석 중 문제가 발생했습니다.' });
   }
 });
-
-// Start Server (only if not running on Vercel)
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-  });
-}
 
 module.exports = app;
